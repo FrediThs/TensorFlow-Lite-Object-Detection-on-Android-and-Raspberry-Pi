@@ -99,7 +99,7 @@ c=0
 # set up Dropbox connection https://practicaldatascience.co.uk/data-science/how-to-use-the-dropbox-api-with-python 
 # set basic infos for Dropbox files: 
 lastUploaded = datetime.datetime.now()
-file_name = datetime.fromtimestamp(datetime.datetime.now())
+file_name = datetime.datetime.now().strftime("%m/%d/%Y_%H:%M:%S")
 base_path = "Apps/Capstone_BirdRec"
 min_upload_seconds = 10
 #  setup connection with dropbox
