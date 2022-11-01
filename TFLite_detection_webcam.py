@@ -24,7 +24,8 @@ import datetime
 from threading import Thread
 import importlib.util
 # additional libraries
-import dropbox 
+import dropbox
+from dropbox.exceptions import AuthError 
 import requests 
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
@@ -94,18 +95,22 @@ resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
 c=0
+
+# set up Dropbox connection https://practicaldatascience.co.uk/data-science/how-to-use-the-dropbox-api-with-python 
+# set basic infos for Dropbox files: 
 lastUploaded = datetime.datetime.now()
 file_name = datetime.fromtimestamp(datetime.datetime.now())
 base_path = "Apps/Capstone_BirdRec"
 min_upload_seconds = 10
-dropbox_access_token = "sl.BSA6jEM-putwfpDRrmjBqeCLGs1jN5bXnZgArPL80rxLGRHqstMQxJTSaOSej9dGO_v2ELLu3LGA2c4W3deLCtDjC8udzCp7D8IGMIFCmohJQtLSu9Q4x6FDnQJukV3-hkOpuEUS"
-use_dropbox = True
-
-# check if dropbox is enabled?
-if use_dropbox == True:
-    # connect 
-    client = dropbox.Dropbox(dropbox_access_token)
-    print("[SUCCESS] Dropbox is connected")
+#  setup connection with dropbox
+dropbox_access_token = "sJHGxMRNp26AAAAAAAAAHiqoGzEadsNpzCE7LH7y0wM0"
+def dropbox_connect():
+    """Create a connection to Dropbox."""
+    try:
+        client = dropbox.Dropbox(dropbox_access_token)
+    except AuthError as e:
+        print('Error connecting to Dropbox with access token: ' + str(e))
+    return client
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
