@@ -27,6 +27,10 @@ import importlib.util
 import dropbox
 from dropbox.exceptions import AuthError 
 import requests 
+# video stuff
+from classes.tempimage import TempImage
+from classes.videostream import Videostream
+from imutils.video import FPS
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -94,23 +98,21 @@ min_conf_threshold = float(args.threshold)
 resW, resH = args.resolution.split('x')
 imW, imH = int(resW), int(resH)
 use_TPU = args.edgetpu
-c=0
+c=0 #diff
 
 # set up Dropbox connection https://practicaldatascience.co.uk/data-science/how-to-use-the-dropbox-api-with-python 
 # set basic infos for Dropbox files: 
 lastUploaded = datetime.datetime.now()
-file_name = datetime.datetime.now().strftime("%m/%d/%Y_%H:%M:%S")
-base_path = "Apps/Capstone_BirdRec"
+#file_name = datetime.datetime.now().strftime("%m/%d/%Y_%H:%M:%S")
+#base_path = "Apps/Capstone_BirdRec"
 min_upload_seconds = 10
 #  setup connection with dropbox
 dropbox_access_token = "sJHGxMRNp26AAAAAAAAAHiqoGzEadsNpzCE7LH7y0wM0"
-def dropbox_connect():
-    """Create a connection to Dropbox."""
-    try:
-        client = dropbox.Dropbox(dropbox_access_token)
-    except AuthError as e:
-        print('Error connecting to Dropbox with access token: ' + str(e))
-    return client
+use_dropbox = True
+if use_dropbox == True:
+    # connect client
+    client = dropbox.Dropbox(dropbox_access_token)
+    print("[SUCCESS] Dropbox account linked")
 
 # Import TensorFlow libraries
 # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -183,23 +185,24 @@ else: # This is a TF1 model
     boxes_idx, classes_idx, scores_idx = 0, 1, 2
 
 # Initialize frame rate calculation
-frame_rate_calc = 1
-freq = cv2.getTickFrequency()
+#frame_rate_calc = 1
+#freq = cv2.getTickFrequency()
 
 # Initialize video stream
 print("[INFO] starting video stream...")
 videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
 time.sleep(1)
+fps = FPS().start()
 
 #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
 
     # Start timer (for calculating frame rate)
-    t1 = cv2.getTickCount()
-
+    # t1 = cv2.getTickCount()
+    
     # stopwatch current timestamp
     timestamp = datetime.datetime.now()
-
+    
     # Grab frame from video stream
     frame1 = videostream.read()
 
@@ -221,7 +224,7 @@ while True:
     boxes = interpreter.get_tensor(output_details[boxes_idx]['index'])[0] # Bounding box coordinates of detected objects
     classes = interpreter.get_tensor(output_details[classes_idx]['index'])[0] # Class index of detected objects
     scores = interpreter.get_tensor(output_details[scores_idx]['index'])[0] # Confidence of detected objects
-    
+
     # Loop over all detections and draw detection box if confidence is above minimum threshold
     for i in range(len(scores)):
         if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
@@ -254,30 +257,42 @@ while True:
                     t = TempImage()
                     cv2.imwrite(t.path,frame)
                     # Upload to dropbox
-                    dropbox_path = "/{base_path}/{file_name}.jpg".format(base_path=base_path,file_name=file_name)
+                    dropbox_path = "/{base_path}/{timestamp}.jpg".format(
+                        base_path="Apps/Capstone_BirdRec/",timestamp=ts)
                     client.files_upload(open(t.path,"rb").read(),dropbox_path)
-                    print("[UPLOADING...]{}".format(file_name))
+                    print("[UPLOADING...]{}".format(ts))
                     t.cleanup()
+                    
                     # Triggger IFTT notification
-                    requests.post('https://maker.iftt.com/trigger/bird-surveillance/with/key/sjJ6PztRcYyH4JWZQszLd')
-                    # set lasat upload to current time
+                    # requests.post('https://maker.iftt.com/trigger/bird-surveillance/with/key/sjJ6PztRcYyH4JWZQszLd')
+                    
+                    # set last upload to current time
                     last_uploaded = timestamp
                 else: 
                     None
     # Draw framerate in corner of frame
-    cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+    #cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
     # All the results have been drawn on the frame, so it's time to display it.
+    frame_display = cv2.resize(frame,(360,240),interpolation=cv2.INTER_CUBIC)
     cv2.imshow('Object detector', frame)
 
     # Calculate framerate
-    t2 = cv2.getTickCount()
-    time1 = (t2-t1)/freq
-    frame_rate_calc= 1/time1
+    # t2 = cv2.getTickCount()
+    # time1 = (t2-t1)/freq
+    # frame_rate_calc= 1/time1
+
+    # update the fps counter
+    fps.update()
 
     # Press 'q' to quit
     if cv2.waitKey(1) == ord('q'):
         break
+
+# Stop FPS thread
+fps.stop()
+print("[INFO] elapsed time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # Clean up
 cv2.destroyAllWindows()
